@@ -2,95 +2,85 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Crypto Dashboard</title>
+    <title>CryptoTracker Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-slate-900 text-white min-h-screen p-4 md:p-10">
+<body id="body" class="bg-gray-950 text-white min-h-screen flex flex-col items-center py-10 transition-colors duration-500">
+    
+    <button onclick="toggleTheme()" class="absolute top-5 right-5 bg-gray-800 p-2 rounded-full">🌙/☀️</button>
 
-    <div class="max-w-5xl mx-auto">
-        <header class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-blue-400">CryptoTracker Pro</h1>
-            <select id="coinSelect" class="bg-slate-800 border border-slate-700 p-2 rounded-lg outline-none cursor-pointer" onchange="changeCoin()">
-                <option value="bitcoin">Bitcoin (BTC)</option>
-                <option value="ethereum">Ethereum (ETH)</option>
-                <option value="solana">Solana (SOL)</option>
-            </select>
-        </header>
+    <h1 class="text-5xl font-extrabold mb-2 text-blue-400">CryptoTracker Pro</h1>
+    
+    <div class="text-lg text-gray-400 mb-8">
+        Price: <span id="price-display" class="font-bold text-blue-400">$...</span>
+        <span id="change-display" class="ml-2 font-semibold"></span>
+    </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
-                <h3 class="text-slate-400">Current Price (USD)</h3>
-                <p id="priceDisplay" class="text-4xl font-mono font-bold mt-2">Loading...</p>
-            </div>
-            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
-                <h3 class="text-slate-400">Market Trend (7 Days)</h3>
-                <p id="trendDisplay" class="text-2xl mt-2">Analyzing...</p>
-            </div>
-        </div>
+    <div class="flex space-x-4 mb-10">
+        <select id="coin-filter" onchange="refreshDashboard()" class="bg-gray-800 text-white px-6 py-3 rounded-lg border border-gray-700 outline-none">
+            <option value="bitcoin">Bitcoin</option>
+            <option value="ethereum">Ethereum</option>
+            <option value="solana">Solana</option>
+        </select>
+        
+        <select id="days-filter" onchange="refreshDashboard()" class="bg-gray-800 text-white px-6 py-3 rounded-lg border border-gray-700 outline-none">
+            <option value="7">Last 7 Days</option>
+            <option value="30">Last 1 Month</option>
+            <option value="365">Last 1 Year</option>
+        </select>
+    </div>
 
-        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
-            <canvas id="cryptoChart"></canvas>
-        </div>
+    <div class="w-full max-w-5xl bg-gray-900 p-8 rounded-3xl shadow-2xl border border-gray-800">
+        <canvas id="myChart"></canvas>
     </div>
 
     <script>
         let myChart;
+        const ctx = document.getElementById('myChart').getContext('2d');
 
-        // Load saved selection from LocalStorage
-        const savedCoin = localStorage.getItem('selectedCoin') || 'bitcoin';
-        document.getElementById('coinSelect').value = savedCoin;
+        function toggleTheme() {
+            document.getElementById('body').classList.toggle('bg-gray-950');
+            document.getElementById('body').classList.toggle('bg-white');
+            document.getElementById('body').classList.toggle('text-black');
+        }
 
-        async function refreshDashboard() {
-            const coin = document.getElementById('coinSelect').value;
-            const url = `https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=7`;
+        async function updateChart(days, coin) {
+            document.getElementById('price-display').innerText = "Loading...";
             
-            try {
-                document.getElementById('priceDisplay').innerText = "Updating...";
-                
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                const prices = data.prices.map(item => item[1]);
-                const labels = data.prices.map(item => new Date(item[0]).toLocaleDateString());
+            const url = `https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=${days}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            const prices = data.prices.map(p => p[1]);
+            const labels = data.prices.map(p => new Date(p[0]).toLocaleDateString());
 
-                document.getElementById('priceDisplay').innerText = `$${prices[prices.length - 1].toLocaleString()}`;
-                document.getElementById('trendDisplay').innerText = prices[prices.length - 1] > prices[0] ? "Positive 📈" : "Negative 📉";
+            myChart.data.labels = labels;
+            myChart.data.datasets[0].data = prices;
+            myChart.update();
 
-                const ctx = document.getElementById('cryptoChart').getContext('2d');
-                if (myChart) myChart.destroy();
-
-                myChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: `${coin.toUpperCase()} Price`,
-                            data: prices,
-                            borderColor: '#60a5fa',
-                            backgroundColor: 'rgba(96, 165, 250, 0.2)',
-                            fill: true,
-                            tension: 0.3
-                        }]
-                    },
-                    options: { responsive: true, plugins: { legend: { display: false } } }
-                });
-            } catch (error) {
-                document.getElementById('priceDisplay').innerText = "Error!";
-                console.error("Fetch failed:", error);
-            }
+            const currentPrice = prices[prices.length - 1];
+            document.getElementById('price-display').innerText = `$${currentPrice.toLocaleString()}`;
+            
+            // Simple logic for price change
+            const startPrice = prices[0];
+            const change = ((currentPrice - startPrice) / startPrice) * 100;
+            const changeDisplay = document.getElementById('change-display');
+            changeDisplay.innerText = `${change.toFixed(2)}%`;
+            changeDisplay.className = change >= 0 ? "text-green-500" : "text-red-500";
         }
 
-        function changeCoin() {
-            const coin = document.getElementById('coinSelect').value;
-            localStorage.setItem('selectedCoin', coin);
-            refreshDashboard();
+        function refreshDashboard() {
+            updateChart(document.getElementById('days-filter').value, document.getElementById('coin-filter').value);
         }
 
-        // Initialize and setup automation
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ data: [], borderColor: '#3b82f6', tension: 0.4, fill: true }] },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+
         refreshDashboard();
-        setInterval(refreshDashboard, 30000); // 30 seconds auto-refresh
     </script>
 </body>
 </html>
