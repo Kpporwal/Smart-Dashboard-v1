@@ -3,46 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Crypto Dashboard</title>
+    <title>Ultimate Crypto Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-gray-100 p-10">
+<body class="bg-slate-900 text-white min-h-screen p-4 md:p-10">
 
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-3xl font-bold mb-5 text-gray-800">Bitcoin Price (Last 7 Days)</h1>
-        <div class="bg-white p-6 rounded-lg shadow-lg">
+    <div class="max-w-5xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-blue-400">CryptoTracker Pro</h1>
+            <select id="coinSelect" class="bg-slate-800 border border-slate-700 p-2 rounded-lg outline-none cursor-pointer" onchange="changeCoin()">
+                <option value="bitcoin">Bitcoin (BTC)</option>
+                <option value="ethereum">Ethereum (ETH)</option>
+                <option value="solana">Solana (SOL)</option>
+            </select>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+                <h3 class="text-slate-400">Current Price (USD)</h3>
+                <p id="priceDisplay" class="text-4xl font-mono font-bold mt-2">Loading...</p>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+                <h3 class="text-slate-400">Market Trend (7 Days)</h3>
+                <p id="trendDisplay" class="text-2xl mt-2">Analyzing...</p>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
             <canvas id="cryptoChart"></canvas>
         </div>
     </div>
 
     <script>
-        async function fetchCryptoData() {
-            // CoinGecko API for Bitcoin price history
-            const url = 'https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=7';
-            const response = await fetch(url);
-            const data = await response.json();
-            
-            // Extracting prices and dates
-            const prices = data.prices.map(item => item[1]);
-            const labels = data.prices.map(item => new Date(item[0]).toLocaleDateString());
+        let myChart;
 
-            const ctx = document.getElementById('cryptoChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Bitcoin Price (USD)',
-                        data: prices,
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
-                    }]
-                }
-            });
+        // Load saved selection from LocalStorage
+        const savedCoin = localStorage.getItem('selectedCoin') || 'bitcoin';
+        document.getElementById('coinSelect').value = savedCoin;
+
+        async function refreshDashboard() {
+            const coin = document.getElementById('coinSelect').value;
+            const url = `https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=7`;
+            
+            try {
+                document.getElementById('priceDisplay').innerText = "Updating...";
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const prices = data.prices.map(item => item[1]);
+                const labels = data.prices.map(item => new Date(item[0]).toLocaleDateString());
+
+                document.getElementById('priceDisplay').innerText = `$${prices[prices.length - 1].toLocaleString()}`;
+                document.getElementById('trendDisplay').innerText = prices[prices.length - 1] > prices[0] ? "Positive 📈" : "Negative 📉";
+
+                const ctx = document.getElementById('cryptoChart').getContext('2d');
+                if (myChart) myChart.destroy();
+
+                myChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: `${coin.toUpperCase()} Price`,
+                            data: prices,
+                            borderColor: '#60a5fa',
+                            backgroundColor: 'rgba(96, 165, 250, 0.2)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: { responsive: true, plugins: { legend: { display: false } } }
+                });
+            } catch (error) {
+                document.getElementById('priceDisplay').innerText = "Error!";
+                console.error("Fetch failed:", error);
+            }
         }
 
-        fetchCryptoData();
+        function changeCoin() {
+            const coin = document.getElementById('coinSelect').value;
+            localStorage.setItem('selectedCoin', coin);
+            refreshDashboard();
+        }
+
+        // Initialize and setup automation
+        refreshDashboard();
+        setInterval(refreshDashboard, 30000); // 30 seconds auto-refresh
     </script>
 </body>
 </html>
